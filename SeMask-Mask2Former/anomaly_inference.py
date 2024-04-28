@@ -44,7 +44,7 @@ def setup_cfg(args):
 
 class Model:
     def __init__(self, args):
-        cfg = setup_cfg()
+        cfg = setup_cfg(args)
         self.model = DefaultPredictor(cfg)
 
     def get_predictions(self, image, output_cls=False):
@@ -68,9 +68,12 @@ class Model:
         # Handling top predictions for specific class (e.g., 13)
 
         # Anomaly detection
-        anomalies = (predictions[1].logsumexp(1).sort()[1]).cpu().numpy()[::-1][:T]
-        att_map = 1 - predictions[2][anomalies.copy()].sigmoid().max(0)[0]
-        map_positives = torch.minimum(att_map, map_positives)
+        # anomalies = (predictions[1].logsumexp(1).sort()[1]).cpu().numpy()[::-1][:T]
+        anomalies = np.where(predictions[1].logsumexp(1).cpu().numpy() > T)[0]
+        # print (anomalies)
+        if len (anomalies) > 0 :
+          att_map = 1 - predictions[2][anomalies.copy()].sigmoid().max(0)[0]
+          map_positives = torch.minimum(att_map, map_positives)
 
         # Another specific class handling (e.g., 0)
         tpp = torch.where(cls[..., :-1].max(1)[1] == 0)
