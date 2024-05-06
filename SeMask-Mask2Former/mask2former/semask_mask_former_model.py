@@ -266,7 +266,7 @@ class SeMaskMaskFormer(nn.Module):
                     instance_r = retry_if_cuda_oom(self.instance_inference)(mask_cls_result, mask_pred_result)
                     processed_results[-1]["instances"] = instance_r
 
-            return processed_results
+            return processed_results, mask_cls_result, mask_pred_result
 
     def prepare_targets(self, targets, gt_seg_targets, images):
         h, w = images.tensor.shape[-2:]
