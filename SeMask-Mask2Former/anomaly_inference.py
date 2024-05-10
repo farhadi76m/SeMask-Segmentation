@@ -52,7 +52,7 @@ class Model:
         segmentation, mask_cls_result, mask_pred_result = self.model(image)
         energy = mask_cls_result.logsumexp(1).cpu().numpy()
         mask_cls_score = F.softmax(mask_cls_result).cpu().numpy()
-        masks = mask_pred_result.sigmoid()
+        masks = mask_pred_result.sigmoid().cpu().numpy()
         return energy, mask_cls_score, masks
 
     def process_predictions(self, img, T=0.80):
