@@ -63,12 +63,12 @@ class Model:
 
         for idx in high_energy_indices:
             if (mask_cls_score[idx].argmax() != 19):
-                scores = torch.maximum(scores, masks[idx] * mask_cls_score[idx].max())
+                scores = np.maximum(scores, masks[idx] * mask_cls_score[idx].max())
 
-        tpp = torch.where(mask_cls_score[..., :-1].max(1)[1] == 0)
+        tpp = np.where(mask_cls_score[..., :-1].max(1)[1] == 0)
         idx_tpp = mask_cls_score[tpp[0], :-1].max(1)[0].argsort(descending=True)[0]
         tcar = masks[[tpp[0]]]
-        scores = torch.minimum(tcar[idx_tpp], scores)
+        scores = np.minimum(tcar[idx_tpp], scores)
         return scores
 
 
