@@ -51,7 +51,7 @@ class Model:
 
         segmentation, mask_cls_result, mask_pred_result = self.model(image)
         energy = mask_cls_result.logsumexp(1).cpu().numpy()
-        mask_cls_score = F.softmax(mask_cls_result).cpu().numpy()
+        mask_cls_score = F.softmax(mask_cls_result,1).cpu().numpy()
         masks = mask_pred_result.sigmoid().cpu().numpy()
         return energy, mask_cls_score, masks
 
@@ -65,10 +65,11 @@ class Model:
             if (mask_cls_score[idx].argmax() != 19):
                 scores = np.maximum(scores, masks[idx] * mask_cls_score[idx].max())
 
-        tpp = np.where(mask_cls_score[..., :-1].max(1)[1] == 0)
-        idx_tpp = mask_cls_score[tpp[0], :-1].max(1)[0].argsort(descending=True)[0]
-        tcar = masks[[tpp[0]]]
-        scores = np.minimum(tcar[idx_tpp], scores)
+        tpp = np.where(mask_cls_score[..., :-1].argmax(1) == 0)[0]
+        idx_tpp = mask_cls_score[tpp, :-1].max(1).argsort()[::-1][0]
+        road = masks[tpp][idx_tpp]
+
+        scores = np.maximum(road, scores)
         return scores
 
 
