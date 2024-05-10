@@ -47,55 +47,29 @@ class Model:
         cfg = setup_cfg(args)
         self.model = DefaultPredictor(cfg)
 
-    def get_predictions(self, image, output_cls=False):
-        if output_cls:
-            segmentation, mask_cls_result, mask_pred_result, output_cls_result = self.model(image)
-            return segmentation, mask_cls_result, mask_pred_result, output_cls_result
-        else:
-            segmentation, mask_cls_result, mask_pred_result = self.model(image)
-            return segmentation, mask_cls_result, mask_pred_result
+    def get_predictions(self, image):
 
-    def process_and_visualize_predictions(self, img, T=8):
+        segmentation, mask_cls_result, mask_pred_result, output_cls_result = self.model(image)
+        energy = mask_cls_result.logsumexp(1).cpu().numpy()
+        mask_cls_score = F.softmax(mask_cls_result).cpu().numpy()
+        masks = mask_pred_result.sigmoid()
+        return energy, mask_cls_score, masks
+
+    def process_predictions(self, img, T=0.80):
         # Get model predictions
-        predictions = self.get_predictions(img, False)
+        energy, mask_cls_score, masks = self.get_predictions(img)
+        scores = np.zeros_like(masks[0])
+        high_energy_indices = np.where(energy > np.quantile(energy, T))[0]
 
-        # Initialize a map for tracking positives
-        map_positives = torch.ones_like(predictions[2][0])
+        for idx in high_energy_indices:
+            if (mask_cls_score[idx].argmax() != 19):
+                scores = torch.maximum(scores, masks[idx] * mask_cls_score[idx].max())
 
-        # Class probabilities using softmax
-        cls = F.softmax(predictions[1], 1)
-
-        # Handling top predictions for specific class (e.g., 13)
-
-        # Anomaly detection
-        # anomalies = (predictions[1].logsumexp(1).sort()[1]).cpu().numpy()[::-1][:T]
-        anomalies = np.where(predictions[1].logsumexp(1).cpu().numpy() > T)[0]
-        # print (anomalies)
-        if len (anomalies) > 0 :
-          att_map = 1 - predictions[2][anomalies.copy()].sigmoid().max(0)[0]
-          map_positives = torch.minimum(att_map, map_positives)
-
-        # Another specific class handling (e.g., 0)
-        tpp = torch.where(cls[..., :-1].max(1)[1] == 0)
-        idx_tpp = cls[tpp[0], :-1].max(1)[0].argsort(descending=True)[0]
-        tcar = predictions[2][[tpp[0]]].sigmoid()
-        map_positives = torch.minimum(1 - tcar[idx_tpp], map_positives).cpu().numpy()
-
-        # max_indices = np.argmax(cls.cpu().numpy(), axis=1)
-        max_indices = np.argmax(cls.cpu().numpy(), axis=1)
-        positive = predictions[2].sigmoid()[max_indices != 19.0].cpu().numpy()
-
-        # # remove the borders of the non-void predictions up to epsilon=0.001
-        for i in range(positive.shape[0]):
-            for j in range(i + 1, positive.shape[0]):
-                neg_border = np.clip((1 - np.logical_and(positive[i] > 0.1, positive[j] > 0.1)) + 0.0, 0, 1)
-                map_positives = np.minimum(neg_border, map_positives)
-
-        # Visualize the map of positives
-        # plt.imshow(map_positives)
-        # plt.show()
-
-        return map_positives
+        tpp = torch.where(mask_cls_score[..., :-1].max(1)[1] == 0)
+        idx_tpp = mask_cls_score[tpp[0], :-1].max(1)[0].argsort(descending=True)[0]
+        tcar = masks[[tpp[0]]]
+        scores = torch.minimum(tcar[idx_tpp], scores)
+        return scores
 
 
 if __name__ == "__main__":

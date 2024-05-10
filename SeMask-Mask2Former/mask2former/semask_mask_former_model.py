@@ -283,6 +283,7 @@ class SeMaskMaskFormer(nn.Module):
                     "seg_maps": gt_seg_target_per_image
                 }
             )
+
         return new_targets
 
     def semantic_inference(self, mask_cls, mask_pred):
