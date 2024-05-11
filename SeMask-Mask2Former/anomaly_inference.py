@@ -103,6 +103,7 @@ class Model:
             outputs_na = outputs_na * outputs_na_mask.detach()
             outputs_na_mask = outputs_na_mask.detach().cpu().numpy().squeeze().squeeze()
         outputs_na = outputs_na.detach().cpu().numpy().squeeze().squeeze()
+        return outputs_na
 
 
 if __name__ == "__main__":
