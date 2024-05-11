@@ -51,7 +51,7 @@ class Model:
 
         segmentation, mask_cls_result, mask_pred_result = self.model(image)
         energy = mask_cls_result.logsumexp(1).cpu().numpy()
-        mask_cls_score = F.softmax(mask_cls_result,1).cpu().numpy()
+        mask_cls_score = F.softmax(mask_cls_result, 1).cpu().numpy()
         masks = mask_pred_result.sigmoid().cpu().numpy()
         return energy, mask_cls_score, masks
 
@@ -70,7 +70,39 @@ class Model:
         road = masks[tpp][idx_tpp]
 
         scores = np.maximum(road, scores)
+        if True :
+            semantic = self.semantic_inference(torch.tensor(mask_cls_score), torch.tensor(masks))
+            scores = self.refinement(scores,semantic).numpy()
         return scores
+
+    def semantic_inference(self, mask_cls, mask_pred):
+
+        mask_cls_f = mask_cls[..., :-1]
+        mask_pred_f = mask_pred
+        semseg = torch.einsum("qc,qhw->chw", mask_cls_f, mask_pred_f)
+        scores, labels = mask_cls.max(-1)
+        mask_pred = mask_pred
+        keep = labels.ne(19) & (scores > 0.95) & (labels < 11) & (labels >= 0)
+        cur_scores = scores[keep]
+        cur_classes = labels[keep]
+        cur_masks = mask_pred[keep]
+        cur_mask_cls = mask_cls[keep]
+        cur_mask_cls = cur_mask_cls[:, :-1]
+        cur_prob_masks = cur_scores.view(-1, 1, 1) * cur_masks
+        semseg = torch.cat((semseg, cur_prob_masks), 0)
+        return semseg
+
+    def refinement(self, p, semantic):
+        outputs_na = torch.tensor(1 - p)
+        if semantic[19:, :, :].shape[0] > 1:
+            outputs_na_mask = torch.max(semantic[19:, :, :].unsqueeze(0), axis=1)[0]
+            outputs_na_mask[outputs_na_mask < 0.5] = 0
+            outputs_na_mask[outputs_na_mask >= 0.5] = 1
+            outputs_na_mask = 1 - outputs_na_mask
+            outputs_na_save = outputs_na.clone().detach().cpu().numpy().squeeze().squeeze()
+            outputs_na = outputs_na * outputs_na_mask.detach()
+            outputs_na_mask = outputs_na_mask.detach().cpu().numpy().squeeze().squeeze()
+        outputs_na = outputs_na.detach().cpu().numpy().squeeze().squeeze()
 
 
 if __name__ == "__main__":
@@ -79,5 +111,5 @@ if __name__ == "__main__":
     model = Model(cfg)
     img = cv2.imread(args.image)  # Adjust as necessary
     processed_output = model.process_and_visualize_predictions(img)
-    cv2.imwrite('output.png',processed_output)
+    cv2.imwrite('output.png', processed_output)
     # Optionally visualize or process `processed_output` further
