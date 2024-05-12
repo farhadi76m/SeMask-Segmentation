@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.metrics import roc_curve, auc, average_precision_score
 from easydict import EasyDict as edict
 from typing import Callable
-from tqdm import  tqdm
+from tqdm import tqdm
 
 
 class Metric:
@@ -163,3 +163,33 @@ class OODEvaluator:
         anomaly_score = np.array(anomaly_score)
 
         return anomaly_score, ood_gts
+
+    def evaluate_ood_bootstrapped(
+            self,
+            loader=None,
+    ):
+        results = edict()
+
+        anomaly_score, ood_gts = self.compute_anomaly_scores(
+            loader=loader,
+        )
+
+        metrics = self.evaluate_ood(
+            anomaly_score=anomaly_score,
+            ood_gts=ood_gts,
+            verbose=False
+        )
+
+        for k, v in metrics.items():
+            if k not in results:
+                results[k] = []
+            results[k].extend([v])
+
+        means = edict()
+        stds = edict()
+        for k, v in results.items():
+            values = np.array(v)
+            means[k] = values.mean() * 100.0
+            stds[k] = values.std() * 100.0
+
+        return means, stds
