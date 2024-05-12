@@ -152,13 +152,12 @@ class OODEvaluator:
         anomaly_score = []
         ood_gts = []
 
-        for image, gt, ignore, file in tqdm(loader, desc="Dataset Iteration"):
-            ood_gts.extend([gt.numpy()])
+        for image, gt, ignore, file in tqdm(loader):
+            ood_gts.extend([gt.numpy()[0]])
 
-            score = self.model(image, 0.7)  # -> (H, W)
-
-            anomaly_score.extend([score.cpu().numpy()])
-
+            image = image.cpu().numpy()[0]
+            score = self.model.process_predictions(image, 0.7)  # -> (H, W)
+            anomaly_score.extend([score])
         ood_gts = np.array(ood_gts)
         anomaly_score = np.array(anomaly_score)
 
