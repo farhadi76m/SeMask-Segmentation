@@ -72,7 +72,7 @@ class Model:
         scores = np.maximum(road, scores)
         if True :
             semantic = self.semantic_inference(torch.tensor(mask_cls_score), torch.tensor(masks))
-            scores = self.refinement(scores,semantic).numpy()
+            scores = self.refinement(scores,semantic)
         return scores
 
     def semantic_inference(self, mask_cls, mask_pred):
