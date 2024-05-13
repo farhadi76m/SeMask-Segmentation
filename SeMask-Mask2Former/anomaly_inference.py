@@ -68,12 +68,15 @@ class Model:
         # Handling top predictions for specific class (e.g., 13)
 
         # Anomaly detection
-        # anomalies = (predictions[1].logsumexp(1).sort()[1]).cpu().numpy()[::-1][:T]
-        anomalies = np.where(predictions[1].logsumexp(1).cpu().numpy() > T)[0]
-        # print (anomalies)
-        if len (anomalies) > 0 :
-          att_map = 1 - predictions[2][anomalies.copy()].sigmoid().max(0)[0]
-          map_positives = torch.minimum(att_map, map_positives)
+        energy = predictions[1].logsumexp(1).cpu().numpy()
+        high_energy = np.where(energy > np.quantile(energy, T))[0]
+        if len(high_energy) > 0:
+            for idx in high_energy :
+                if cls[idx].argmax() != 19 :
+                    # att_map = 1 - predictions[2][anomalies.copy()].sigmoid().max(0)[0]
+                    map_positives = torch.minimum(map_positives, 1 - predictions[2][idx].sigmoid() * cls[idx].max())
+
+
 
         # Another specific class handling (e.g., 0)
         tpp = torch.where(cls[..., :-1].max(1)[1] == 0)
@@ -104,5 +107,5 @@ if __name__ == "__main__":
     model = Model(cfg)
     img = cv2.imread(args.image)  # Adjust as necessary
     processed_output = model.process_and_visualize_predictions(img)
-    cv2.imwrite('output.png',processed_output)
+    cv2.imwrite('output.png', processed_output)
     # Optionally visualize or process `processed_output` further
