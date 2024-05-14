@@ -28,6 +28,7 @@ def get_args():
                         help="Path to the model weights.")
     parser.add_argument("--image",
                         help="Path of your image")
+    parser.add_argument("--refinement", default=False)
 
     return parser.parse_args()
 
@@ -58,21 +59,21 @@ class Model:
     def process_predictions(self, img, T=0.80):
         # Get model predictions
         energy, mask_cls_score, masks = self.get_predictions(img)
-        scores = np.zeros_like(masks[0])
+        scores = np.ones_like(masks[0])
         high_energy_indices = np.where(energy > np.quantile(energy, T))[0]
 
         for idx in high_energy_indices:
-            if (mask_cls_score[idx].argmax() != 19):
-                scores = np.maximum(scores, masks[idx] * mask_cls_score[idx].max())
+            if mask_cls_score[idx].argmax() != 19:
+                scores = np.minimum(scores, 1 - masks[idx] * mask_cls_score[idx].max())
 
         tpp = np.where(mask_cls_score[..., :-1].argmax(1) == 0)[0]
         idx_tpp = mask_cls_score[tpp, :-1].max(1).argsort()[::-1][0]
         road = masks[tpp][idx_tpp]
 
-        scores = np.maximum(road, scores)
-        if True :
+        scores = np.maximum(scores, 1 - road)
+        if args.refinment:
             semantic = self.semantic_inference(torch.tensor(mask_cls_score), torch.tensor(masks))
-            scores = self.refinement(scores,semantic)
+            scores = self.refinement(scores, semantic)
         return scores
 
     def semantic_inference(self, mask_cls, mask_pred):
