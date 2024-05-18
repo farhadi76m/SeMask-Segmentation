@@ -24,44 +24,35 @@ class FishyscapesLAF(Dataset):
     - laf_images: contains the images taken from the Lost & Found Dataset
     """
 
-    def __init__(self, hparams, transforms):
+    def __init__(self, hparams, transforms, mode='test'):
         super().__init__()
 
         self.hparams = hparams
         self.transforms = transforms
+        self.mode = mode
 
-        self.images = []
-        self.labels = []
-
-        labels_path = os.path.join(
-            hparams.dataset_root, 'fishyscapes_lostandfound')
-        label_files = os.listdir(labels_path)
-        label_files.sort()
-        for lbl in label_files:
-
-            self.labels.extend([os.path.join(labels_path, lbl)])
-            img_name = lbl[5:-10] + 'leftImg8bit.png'
-            self.images.extend(
-                [os.path.join(hparams.dataset_root, 'laf_images', img_name)])
+        self.images = os.listdir(os.path.join(hparams.dataset_root, "images"))
+        self.images = [os.path.join(hparams.dataset_root, "images", path) for path in self.images]
+        self.labels = [path.replace('images', 'labels_masks') for path in self.images]
 
         self.num_samples = len(self.images)
 
-    def __getitem__(self, index):
+    def __len__(self):
+        return self.num_samples
 
+    def __getitem__(self, index):
         image = read_image(self.images[index])
         label = read_image(self.labels[index])
 
         label = label[:, :, 0]
+        # label[label == 1] -= 1
+        # label[label == 2] -= 1
 
         aug = self.transforms(image=image, mask=label)
         image = aug['image']
         label = aug['mask']
 
         return image, label.type(torch.LongTensor)
-
-    def __len__(self):
-        return self.num_samples
-
 
 class FishyscapesStatic(Dataset):
     """
