@@ -47,7 +47,7 @@ class Model:
     def __init__(self, args):
         cfg = setup_cfg(args)
         self.model = DefaultPredictor(cfg)
-        self.refinement = args.refinment
+        self.refinment = args.refinment
     def get_predictions(self, image):
 
         segmentation, mask_cls_result, mask_pred_result = self.model(image)
