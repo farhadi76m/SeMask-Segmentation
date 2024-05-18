@@ -47,7 +47,7 @@ class Model:
     def __init__(self, args):
         cfg = setup_cfg(args)
         self.model = DefaultPredictor(cfg)
-
+        self.refinement = args.refinment
     def get_predictions(self, image):
 
         segmentation, mask_cls_result, mask_pred_result = self.model(image)
@@ -71,7 +71,7 @@ class Model:
         road = masks[tpp][idx_tpp]
 
         scores = np.maximum(scores, 1 - road)
-        if args.refinment:
+        if self.refinment:
             semantic = self.semantic_inference(torch.tensor(mask_cls_score), torch.tensor(masks))
             scores = self.refinement(scores, semantic)
         return scores
