@@ -7,8 +7,8 @@ import sys
 import tqdm
 import torch
 
-sys.path.insert(1, os.path.join(sys.path[0], '/content/SeMask-Segmentation/SeMask-Mask2Former'))
 sys.path.insert(1, os.path.join(sys.path[0], '/content/'))
+sys.path.insert(1, os.path.join(sys.path[0], '/content/Mask2Former'))
 
 from detectron2.config import get_cfg
 from detectron2.projects.deeplab import add_deeplab_config
@@ -16,7 +16,10 @@ from detectron2.engine import DefaultPredictor
 
 from mask2former import add_maskformer2_config
 
+sys.path.insert(1, os.path.join(sys.path[0], '/content/SeMask-Segmentation/SeMask-Mask2Former'))
+
 import torch.nn.functional as F
+from methods import get_ellips, get_knn, get_zscore, get_isolation_forest, get_mahalanobis
 
 
 def get_args():
@@ -26,7 +29,7 @@ def get_args():
                         help="Path to the configuration file.")
     parser.add_argument("--opts", type=str, default="/content/semask_large_mask2former_cityscapes.pth",
                         help="Path to the model weights.")
-    parser.add_argument("--image",default = None ,
+    parser.add_argument("--image", default=None,
                         help="Path of your image")
     parser.add_argument("--refinement", default=False)
 
@@ -47,30 +50,33 @@ class Model:
     def __init__(self, args):
         cfg = setup_cfg(args)
         self.model = DefaultPredictor(cfg)
-        # self.refinment = args.refinment
+        self.method = eval(args.method)
+
     def get_predictions(self, image):
 
         segmentation, mask_cls_result, mask_pred_result = self.model(image)
-        energy = mask_cls_result.logsumexp(1).cpu().numpy()
-        mask_cls_score = F.softmax(mask_cls_result, 1).cpu().numpy()
+        selected_masks = self.method(mask_cls_result.cpu())
+        mask_cls_score = mask_cls_result.softmax(-1).cpu().numpy()
         masks = mask_pred_result.sigmoid().cpu().numpy()
-        return energy, mask_cls_score, masks
+        print(f"maximums {np.where(mask_cls_result.cpu().argmax(1) != 19)[0]}")
+        print(f"selected {selected_masks}\n")
+        return selected_masks, mask_cls_score, masks
 
     def process_predictions(self, img, T=0.80):
         # Get model predictions
-        energy, mask_cls_score, masks = self.get_predictions(img)
+        selected_masks, mask_cls_score, masks = self.get_predictions(img)
         scores = np.ones_like(masks[0])
-        high_energy_indices = np.where(energy > np.quantile(energy, T))[0]
 
-        for idx in high_energy_indices:
+        for idx in selected_masks:
             if mask_cls_score[idx].argmax() != 19:
-                scores = np.minimum(scores, 1 - masks[idx] * mask_cls_score[idx].max())
+                print(idx)
+                scores = np.minimum(scores, 1 - mask_cls_score[idx].max() * masks[idx])
 
         tpp = np.where(mask_cls_score[..., :-1].argmax(1) == 0)[0]
         idx_tpp = mask_cls_score[tpp, :-1].max(1).argsort()[::-1][0]
         road = masks[tpp][idx_tpp]
 
-        scores = np.maximum(scores, 1 - road)
+        scores = np.minimum(scores, 1 - road)
         if False:
             semantic = self.semantic_inference(torch.tensor(mask_cls_score), torch.tensor(masks))
             scores = self.refinement(scores, semantic)
