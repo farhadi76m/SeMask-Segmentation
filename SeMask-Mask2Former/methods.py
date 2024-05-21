@@ -15,10 +15,10 @@ from sklearn.neighbors import LocalOutlierFactor
 # load Mask2Former fine-tuned on Cityscapes semantic segmentation
 processor = AutoImageProcessor.from_pretrained("facebook/mask2former-swin-large-cityscapes-semantic")
 model = Mask2FormerForUniversalSegmentation.from_pretrained("facebook/mask2former-swin-large-cityscapes-semantic")
-image = Image.open("/content/4.png")
+# image = Image.open("/content/4.png")
 
 
-def inference(image):
+def inference(image, shape):
     global semantic_map
     inputs = processor(image, return_tensors="pt")
 
@@ -36,6 +36,7 @@ def inference(image):
         masks_queries_logits, size=(384, 384), mode="bilinear", align_corners=False
     )
 
+
     # Remove the null class `[..., :-1]`
     masks_classes = class_queries_logits.softmax(dim=-1)[..., :-1]
     masks_probs = masks_queries_logits.sigmoid()  # [batch_size, num_queries, height, width]
@@ -47,13 +48,13 @@ def inference(image):
     semantic_segmentation = []
     for idx in range(batch_size):
         resized_logits = torch.nn.functional.interpolate(
-            segmentation[idx].unsqueeze(dim=0), size=[720, 1280], mode="bilinear", align_corners=False
+            segmentation[idx].unsqueeze(dim=0), size=shape, mode="bilinear", align_corners=False
         )
         semantic_map = resized_logits[0].argmax(dim=0)
         semantic_segmentation.append(semantic_map)
 
     masks_queries_logits = torch.nn.functional.interpolate(
-        masks_queries_logits, size=(720, 1280), mode="bilinear", align_corners=False
+        masks_queries_logits, size=shape, mode="bilinear", align_corners=False
     )
     return semantic_map, class_queries_logits, masks_queries_logits
 
@@ -88,7 +89,7 @@ def get_isolation_forest(class_queries_logits):
 def get_mahalanobis(class_queries_logits, t=0.95):
     # Assuming your matrix is a numpy array named 'data'
     # data = np.random.random((100, 20))  # Example data
-    data = class_queries_logits.squeeze()[..., :-1]  # Example data
+    data = class_queries_logits.squeeze() # Example data
     # Calculate the mean and covariance matrix
     mean = np.mean(data.numpy(), axis=0)
     cov = np.cov(data, rowvar=False)
@@ -107,21 +108,23 @@ def get_mahalanobis(class_queries_logits, t=0.95):
 def get_zscore(class_queries_logits, t=0.95):
     # Assuming your matrix is a numpy array named 'data'
     # data = np.random.random((100, 20))  # Example data
-    data = class_queries_logits.squeeze()[..., :-1]  # Example data
+    data = class_queries_logits.squeeze()  # Example data
     # Calculate Z-scores
-    z_scores = np.abs(zscore(data[..., :-1].numpy(), axis=1))
+    z_scores = np.abs(zscore(data.numpy(), axis=1))
 
     # Set a threshold for Z-scores to detect anomalies, e.g., 3 standard deviations
-    threshold = 3
+    threshold = np.quantile(z_scores.max(1),t)
     anomalies = np.where(np.any(z_scores > threshold, axis=1))[0]
 
     return anomalies
 
 
+
+
 def get_knn(class_queries_logits, k=5, t=0.95):
     # Fit k-NN
     # Number of neighbors
-    data = class_queries_logits.squeeze()[..., :-1]
+    data = class_queries_logits.squeeze()
     nbrs = NearestNeighbors(n_neighbors=k)
     nbrs.fit(data)
 
@@ -133,12 +136,16 @@ def get_knn(class_queries_logits, k=5, t=0.95):
     threshold = np.quantile(kth_distances, t)
     anomalies = np.where(kth_distances > threshold)[0]
 
-    return anomalies,kth_distances
+    return anomalies
 
-
+def get_energy(class_queries_logits, t=0.95):
+    energy = class_queries_logits.logsumexp(1).cpu().numpy()
+    threshold = np.quantile(energy, t)
+    anomalies = np.where(energy>threshold)[0]
+    return anomalies
 def get_ellips(class_queries_logits):
-    data = class_queries_logits.squeeze()[..., :-1]
-    cov = EllipticEnvelope(contamination=0.1)
+    data = class_queries_logits.squeeze()
+    cov = EllipticEnvelope(contamination=0.2)
     cov.fit(data)
 
     # Predict anomalies
@@ -151,7 +158,7 @@ def get_ellips(class_queries_logits):
 
 def get_lof(class_queries_logits):
     # Local Outlier Factor
-    data = class_queries_logits.squeeze()[..., :-1]
+    data = class_queries_logits.squeeze()
     lof = LocalOutlierFactor(contamination=0.05)
     lof_preds = lof.fit_predict(data)
     anomalies = np.where((lof_preds == -1))[0]

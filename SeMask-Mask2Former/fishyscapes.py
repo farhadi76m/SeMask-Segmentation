@@ -48,11 +48,11 @@ class FishyscapesLAF(Dataset):
         # label[label == 1] -= 1
         # label[label == 2] -= 1
 
-        aug = self.transforms(image=image, mask=label)
-        image = aug['image']
-        label = aug['mask']
+        # aug = self.transforms(image=image, mask=label)
+        # image = aug['image']
+        # label = aug['mask']
 
-        return image, label.type(torch.LongTensor)
+        return image, label#.type(torch.LongTensor)
 
 class FishyscapesStatic(Dataset):
     """

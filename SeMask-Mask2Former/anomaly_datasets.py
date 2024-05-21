@@ -101,7 +101,7 @@ class FishyScapesStatic(Dataset):
         label = label[:, :, 0]
 
         anomaly_gt = np.zeros_like(label, dtype=np.uint8)
-        anomaly_gt[label == 1] = 1
+        anomaly_gt[label > 0] = 1
 
         ignore = np.zeros_like(label, dtype=np.uint8)
         ignore[label == 255] = 1

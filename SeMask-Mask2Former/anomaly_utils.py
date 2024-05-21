@@ -1,3 +1,4 @@
+import cv2
 import matplotlib.pylab as plt
 import numpy as np
 from sklearn.metrics import roc_curve, auc, average_precision_score
@@ -153,10 +154,17 @@ class OODEvaluator:
         ood_gts = []
 
         for image, gt, ignore, file in tqdm(loader):
-            ood_gts.extend([gt.numpy()[0]])
+            # gt = cv2.resize(gt[0].numpy(),[512,1024])
+            # ignore = cv2.resize(ignore[0].numpy(), [512, 1024])
+
+            # gt = gt[ignore==0]
+            ood_gts.extend([gt.numpy()[0]
+                             ])
 
             image = image.cpu().numpy()[0]
-            score = self.model.process_predictions(image, 0.7)  # -> (H, W)
+            score = self.model.process_predictions(image)  # -> (H, W)
+            # score = cv2.resize(score,[512,1024])
+            # score = score[ignore==0]
             anomaly_score.extend([score])
         ood_gts = np.array(ood_gts)
         anomaly_score = np.array(anomaly_score)

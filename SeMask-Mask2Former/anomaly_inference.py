@@ -24,9 +24,9 @@ def get_args():
     parser.add_argument("--config_path", type=str,
                         default="/content/SeMask-Segmentation/SeMask-Mask2Former/configs/cityscapes/semantic-segmentation/semask_swin/maskformer2_semask_swin_large_IN21k_384_bs16_90k.yaml",
                         help="Path to the configuration file.")
-    parser.add_argument("--weights_path", type=str, default="/content/semask_large_mask2former_cityscapes.pth",
+    parser.add_argument("--opts", type=str, default="/content/semask_large_mask2former_cityscapes.pth",
                         help="Path to the model weights.")
-    parser.add_argument("--image",
+    parser.add_argument("--image",default = None ,
                         help="Path of your image")
     parser.add_argument("--refinement", default=False)
 
@@ -37,8 +37,8 @@ def setup_cfg(args):
     cfg = get_cfg()
     add_deeplab_config(cfg)
     add_maskformer2_config(cfg)
-    cfg.merge_from_file(args.config_path)
-    cfg.merge_from_list(['MODEL.WEIGHTS', args.weights_path])
+    cfg.merge_from_file(args.config_file)
+    cfg.merge_from_list(args.opts)
     cfg.freeze()
     return cfg
 
@@ -47,7 +47,7 @@ class Model:
     def __init__(self, args):
         cfg = setup_cfg(args)
         self.model = DefaultPredictor(cfg)
-        self.refinment = args.refinment
+        # self.refinment = args.refinment
     def get_predictions(self, image):
 
         segmentation, mask_cls_result, mask_pred_result = self.model(image)
@@ -71,7 +71,7 @@ class Model:
         road = masks[tpp][idx_tpp]
 
         scores = np.maximum(scores, 1 - road)
-        if self.refinment:
+        if False:
             semantic = self.semantic_inference(torch.tensor(mask_cls_score), torch.tensor(masks))
             scores = self.refinement(scores, semantic)
         return scores
